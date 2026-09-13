@@ -8,6 +8,7 @@ import {
   parseModelRef,
   selectRecentEntries,
 } from "../dsh/core.js";
+import { gitContextNote } from "../dsh/git.js";
 
 test("parseModelRef requires provider/model", () => {
   assert.deepEqual(parseModelRef("openai-codex/gpt-5.6-sol"), {
@@ -56,4 +57,15 @@ test("recent-entry selection preserves newest complete entries", () => {
   const small = selectRecentEntries(["old-entry-".repeat(20), "new-entry"], 60);
   assert.match(small, /new-entry/);
   assert.match(small, /Older context omitted/);
+});
+
+test("no-changes repository state is not misreported as withheld", () => {
+  assert.equal(
+    gitContextNote({ level: "summary", status: "no-changes", text: "" }, "full", "summary"),
+    "The working tree has no uncommitted changes.",
+  );
+  assert.match(
+    gitContextNote({ level: "summary", status: "collected", text: "changed" }, "full", "summary"),
+    /fuller view was requested but withheld/,
+  );
 });

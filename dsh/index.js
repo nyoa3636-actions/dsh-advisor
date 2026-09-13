@@ -23,6 +23,13 @@ function logger(ctx) {
   return ctx.logger?.child ? ctx.logger.child("dsh-advisor") : ctx.logger;
 }
 
+function blockSession(agent, state, config, reason) {
+  state.block(reason);
+  if (config.advisorBlockOnBlocked && agent?.status === "running") {
+    agent.cancel({ kind: "hook", reason }, { keepInbox: true });
+  }
+}
+
 function gateFailure(ctx, agent, state, config, reason) {
   const message = `Advisor loop gate failed: ${reason}`;
   if (config.gateFailureMode === "warn-and-continue") {
@@ -30,7 +37,7 @@ function gateFailure(ctx, agent, state, config, reason) {
     state.resetRepetition();
     return { kind: "allow" };
   }
-  if (config.gateFailureMode === "block-session") state.block(message);
+  if (config.gateFailureMode === "block-session") blockSession(agent, state, config, message);
   return { kind: "deny", reason: message };
 }
 
@@ -75,7 +82,7 @@ async function runLoopGate(ctx, exec, state, config) {
       state.resetRepetition();
       return { kind: "allow" };
     }
-    if (config.gateFailureMode === "block-session") state.block(result.markdown);
+    if (config.gateFailureMode === "block-session") blockSession(exec.agent, state, config, result.markdown);
     return { kind: "deny", reason: `Advisor blocked this repeated tool call.\n\n${result.markdown}` };
   } catch (error) {
     return gateFailure(ctx, exec.agent, state, config, error instanceof Error ? error.message : String(error));
@@ -141,8 +148,8 @@ export function apply(ctx, rawConfig) {
     },
   });
 
-  ctx.on("agent/session-start", ({ agent }) => {
-    stateFor(agent).reset();
+  ctx.on("agent/session-start", ({ agent, source }) => {
+    if (source !== "compact") stateFor(agent).reset();
   });
 
   ctx.on("agent/request", async ({ agent }, next) => {

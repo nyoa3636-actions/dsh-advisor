@@ -31,6 +31,7 @@ export async function consultAdvisor(ctx, agent, config, options = {}, signal) {
     model: route.model,
     ...(config.advisorEffort ? { reasoningEffort: config.advisorEffort } : {}),
     messages,
+    sessionId: agent.session.id,
     signal,
   })) {
     if (chunk.type === "text-delta") markdown += chunk.text;

@@ -46,35 +46,39 @@ dsh --profile default --dump-config
 
 ## Configuration
 
-The bundle installs an empty `dsh-advisor` row. Configure it in the profile's `cordis.patch.yml` or in `$DSH_HOME/cordis.patch.yml` with the same row id:
+The bundle inserts a `dsh-advisor` row. Configure it in the profile's `cordis.patch.yml` or in `$DSH_HOME/cordis.patch.yml` by overriding that row id. Do **not** insert a second row with the same id.
 
 ```yaml
-- insert:
-    - id: dsh-advisor
-      name: dsh-advisor
-      config:
-        advisor: openai-codex/gpt-5.6-sol
-        advisorEffort: high
+- id: dsh-advisor
+  config:
+    advisor: openai-codex/gpt-5.6-sol
+    advisorEffort: high
 
-        # Leave executor empty to follow the DSH model picker.
-        # This is recommended if you want to switch to Sol/Astra manually.
-        executor: ''
-        executorEffort: ''
+    # Leave executor empty to follow the DSH model picker.
+    # This is recommended if you want to switch to Sol/Astra manually.
+    executor: ''
+    executorEffort: ''
 
-        contextMaxChars: 15000
-        advisorPlanGate: true
-        advisorFailureGate: true
-        advisorCompletionGate: true
-        advisorAutoLoopGate: true
-        advisorLoopThreshold: 3
-        advisorMaxCallsPerSession: -1
+    contextMaxChars: 15000
+    advisorPlanGate: true
+    advisorFailureGate: true
+    advisorCompletionGate: true
+    advisorAutoLoopGate: true
+    advisorLoopThreshold: 3
+    advisorMaxCallsPerSession: -1
 
-        advisorGitContext: summary
-        advisorGitContextMaxChars: 20000
-        advisorToolResultMaxLines: 2000
-        advisorToolResultMaxBytes: 51200
-        advisorRedactSecrets: false
+    # Automatic loop-gate failure/block behavior.
+    gateFailureMode: block-session
+    advisorBlockOnBlocked: true
+
+    advisorGitContext: summary
+    advisorGitContextMaxChars: 20000
+    advisorToolResultMaxLines: 2000
+    advisorToolResultMaxBytes: 51200
+    advisorRedactSecrets: false
 ```
+
+DSH applies profile/home patches after bundle layers. A later row with the same `id` overrides the bundle row's configuration; its `config` value is replaced as a whole rather than deep-merged.
 
 Model references use `provider/model` because DSH routes models through provider registrations. Replace the examples with routes that exist in your DSH model picker.
 
@@ -123,7 +127,7 @@ Decision: blocked
 
 `gateFailureMode` can be:
 
-- `block-session` (default): deny this and subsequent tool calls in the session.
+- `block-session` (default): deny this and subsequent tool calls in the session. With `advisorBlockOnBlocked: true` (default), the active turn is also cancelled while queued future input is preserved.
 - `block-tool`: deny only the current repeated tool call.
 - `warn-and-continue`: log the warning and allow execution.
 
@@ -143,7 +147,7 @@ It follows upstream's disclosure shape:
 - optional Executor `draft`
 - optional targeted `question`
 
-Reasoning blocks are not forwarded. Repository text is escaped and explicitly labelled as untrusted data. Optional secret redaction runs locally before disclosure.
+Reasoning blocks are not forwarded. Conversation, draft, and repository regions are escaped before tagged prompt insertion. Repository text is explicitly labelled as untrusted data. Optional secret redaction runs locally before disclosure.
 
 ## Tool-result policies
 

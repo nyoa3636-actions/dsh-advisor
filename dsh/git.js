@@ -82,7 +82,7 @@ export function collectGitContext(cwd, level, maxChars, redact = (value) => valu
 }
 
 export function gitContextNote(result, requested, allowed) {
-  if (requested !== allowed && (result.status === "collected" || result.status === "no-changes")) {
+  if (requested !== allowed && result.status === "collected") {
     return `Repository context was limited to "${allowed}" by user configuration; a fuller view was requested but withheld.`;
   }
   switch (result.status) {
