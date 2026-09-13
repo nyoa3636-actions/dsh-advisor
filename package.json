@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "check": "node --check dsh/core.js && node --check dsh/prompts.js && node --check dsh/git.js && node --check dsh/context.js && node --check dsh/advisor.js && node --check dsh/config.js && node --check dsh/index.js",
-    "test": "node --test test/dsh-core.test.mjs"
+    "test": "node --test test/dsh-core.test.mjs test/dsh-integration.test.mjs"
   },
   "keywords": [
     "deepseek-harness",
@@ -48,5 +48,12 @@
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "3.18.2"
   }
 }

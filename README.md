@@ -32,11 +32,13 @@ Not yet ported from Pi-specific UX: interactive settings/model pickers, Advisor 
 
 Install the GitHub checkout into a DSH profile:
 
+While PR #1 is open, install the tested branch explicitly:
+
 ```sh
-dsh plugin --profile default add github:nyoa3636-actions/dsh-advisor
+dsh plugin --profile default add github:nyoa3636-actions/dsh-advisor#dsh-port
 ```
 
-This package ships runnable JavaScript, so a Git install does **not** need a `prepare` build step or pnpm `allowBuilds` permission.
+After `dsh-port` is merged into `main`, the `#dsh-port` suffix may be omitted. This package ships runnable JavaScript, so a Git install does **not** need a `prepare` build step or pnpm `allowBuilds` permission.
 
 Verify the layer:
 
@@ -132,6 +134,8 @@ Decision: blocked
 - `warn-and-continue`: log the warning and allow execution.
 
 No case automatically switches the Executor to the Advisor model.
+
+A `block-session` decision remains sticky for the current live Agent. Recover by starting a new session or by resuming the persisted session into a new live Agent. A DSH `clear` lifecycle edge also resets the state when a surface emits it. Compaction deliberately does **not** reset blocked state, call budget, repetition tracking, or usage accounting. No separate `/advisor-reset` command is added in this port.
 
 ## Context sent to the Advisor
 
