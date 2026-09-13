@@ -1,118 +1,190 @@
-# [pi-advisor](https://github.com/philipbrembeck/pi-advisor)
+# dsh-advisor
 
-<div align="center">
+A configurable **Executor / Advisor workflow for DeepSeek Harness (DSH)**.
 
-![Pi Advisor consultation in the terminal](https://raw.githubusercontent.com/philipbrembeck/pi-advisor/refs/heads/main/assets/screenshot.png)
+`dsh-advisor` is a DSH port/adaptation of [philipbrembeck/pi-advisor](https://github.com/philipbrembeck/pi-advisor). The upstream project is MIT-licensed and remains the design reference for this fork.
 
-A configurable second-opinion workflow for <a href="https://github.com/earendil-works/pi">Pi</a> coding agents, inspired by the ["Steering Black-Box LLMs with Advisor Models" paper](https://arxiv.org/abs/2510.02453) and Claude's [Advisor](https://code.claude.com/docs/en/advisor) feature.
+The core idea is simple:
 
-</div>
+- Use a cheap/fast model such as GPT-5.6 Luna or DeepSeek V4.1 Flash as the normal **Executor**.
+- Let the Executor read files, search, edit, run tests, and own the task.
+- Call a stronger model such as GPT-5.6 Sol or another premium model only as an **Advisor** for consequential plans, repeated failures, or final review.
+- The Advisor gives advice only. **There is no automatic takeover.**
 
-![Downloads](https://img.shields.io/npm/d18m/pi-advisor-flow?style=flat) ![NPM Version](https://img.shields.io/npm/v/pi-advisor-flow?style=flat) ![Pi Advisor Flow badge](https://img.shields.io/badge/advisor%20flow-fff?logo=pi&logoColor=000)
+## Status
 
-`pi-advisor-flow` keeps one model focused on execution and makes a second, smarter model available for consequential decisions, stalled work, and final reviews. The Executor still owns the work. The Advisor challenges assumptions, exposes risks, and suggests verification steps without taking over or running tools.
+Early DSH port. The first implementation preserves the central flow semantics from `pi-advisor`:
 
-Keep implementation on a fast model and borrow frontier reasoning only when decisions matter. [Read why this workflow is useful](https://philipbrembeck.com/writings/2026/07/only-as-much-intelligence-as-you-need).
+- `ask_advisor` tool for voluntary second opinions
+- plan / failure / completion consultation rules injected into the Executor prompt
+- automatic repeated-tool loop gate
+- shared Advisor-call budget per session
+- bounded reconstructed conversation context
+- configurable tool-result disclosure (`full`, `summary`, `exclude`)
+- optional Git working-tree context (`off`, `summary`, `full`)
+- optional local secret redaction
+- Advisor token-usage accounting and optional session summaries
+- optional Executor pinning
 
-## Features
+Not yet ported from Pi-specific UX: interactive settings/model pickers, Advisor Scout, Herdr integration, tracked/untracked file-content consent handoff, Pi UI cards, and outcome logging. These are deliberately outside the first DSH runtime port.
 
-- **On-demand second opinions** through the `ask_advisor` tool or `/advisor-manual`.
-- **Configurable review gates** before plans, after repeated failures, and before declaring completion.
-- **Automatic loop detection** for repeated tool calls, with explicit proceed, revise, or blocked decisions.
-- **Separate model and reasoning controls** for the Executor and Advisor.
-- **Advisor usage accounting** with per-response token and cost details, normalized usage in Pi's `/cost` totals, and an optional cumulative footer.
-- **Privacy controls** for conversation history, repository context, explicit file handoff, tool results, secret redaction, and outcome logging.
-- **Optional persistent activation, Simple mode, session summaries, and Herdr integration.**
-- **Compact searchable `/advisor-settings`** that matches Pi's settings list and saves changes immediately.
-- **Experimental Advisor Scout** that uses the configured Executor model to curate conversation evidence before every Advisor call.
+## Installation
 
-## How it works
+Install the GitHub checkout into a DSH profile:
 
-1. The Executor investigates the task and forms its own candidate direction.
-2. For a consequential decision, stalled attempt, or final review, it calls `ask_advisor` or an enabled gate starts a review.
-3. pi-advisor reconstructs the relevant conversation and allowed repository context.
-4. The Advisor returns an opinion with risks, alternatives, and verification steps.
-5. The Executor decides what to adopt, changes the code, and validates it.
-
-Regular consultations never block execution. Automatic loop gates are different: they evaluate repeated tool calls and can stop a tool action or session based on your configured failure policy.
-
-## Install
-
-Requires Pi 0.84.1 or later. Pi 0.85.0 is not supported (broken upstream release); use Pi 0.85.1 or later instead.
-
-```bash
-pi install npm:pi-advisor-flow
+```sh
+dsh plugin --profile default add github:nyoa3636-actions/dsh-advisor
 ```
 
-You can also install from GitHub:
+This package ships runnable JavaScript, so a Git install does **not** need a `prepare` build step or pnpm `allowBuilds` permission.
 
-```bash
-pi install git:github.com/philipbrembeck/pi-advisor.git
+Verify the layer:
+
+```sh
+dsh --profile default --dump-config
 ```
 
-Reload Pi after installing.
+## Configuration
 
-## Quick start
+The bundle installs an empty `dsh-advisor` row. Configure it in the profile's `cordis.patch.yml` or in `$DSH_HOME/cordis.patch.yml` with the same row id:
+
+```yaml
+- insert:
+    - id: dsh-advisor
+      name: dsh-advisor
+      config:
+        advisor: openai-codex/gpt-5.6-sol
+        advisorEffort: high
+
+        # Leave executor empty to follow the DSH model picker.
+        # This is recommended if you want to switch to Sol/Astra manually.
+        executor: ''
+        executorEffort: ''
+
+        contextMaxChars: 15000
+        advisorPlanGate: true
+        advisorFailureGate: true
+        advisorCompletionGate: true
+        advisorAutoLoopGate: true
+        advisorLoopThreshold: 3
+        advisorMaxCallsPerSession: -1
+
+        advisorGitContext: summary
+        advisorGitContextMaxChars: 20000
+        advisorToolResultMaxLines: 2000
+        advisorToolResultMaxBytes: 51200
+        advisorRedactSecrets: false
+```
+
+Model references use `provider/model` because DSH routes models through provider registrations. Replace the examples with routes that exist in your DSH model picker.
+
+### Executor selection and manual takeover
+
+For the intended workflow, leave `executor` empty and select Luna / DeepSeek V4.1 Flash normally in DSH. `dsh-advisor` then leaves DSH's model selection untouched.
+
+If `executor` is set, the plugin pins every Executor request to that provider/model. That is useful for a fully automatic cheap-Executor setup, but it also means a manual model-picker switch will be overridden on the next request. Therefore **leave `executor` empty when you want to decide takeover yourself**.
+
+## What the Executor sees
+
+When an Advisor is configured, DSH receives the same central guidance used by upstream `pi-advisor`:
+
+- consult before committing to a materially consequential plan;
+- consult after two materially equivalent failed attempts, a recreated failure, or two actions with no measurable progress;
+- consult before declaring success for non-trivial work;
+- use `ask_advisor` with an empty object for a normal contextual review, or attach a concise `draft` / specific `question` when useful.
+
+Example tool call conceptually:
+
+```json
+{
+  "question": "Is this state-management change safe across process restart?",
+  "draft": "Move the cache ownership into Repository; validate with existing integration tests.",
+  "gitContext": "summary"
+}
+```
+
+The Advisor response is returned to the Executor as a normal tool result. The Advisor has no mutation tools and does not take over the session.
+
+## Automatic loop gate
+
+By default, after three consecutive calls with the same normalized tool signature, `dsh-advisor` asks the Advisor whether the Executor should continue.
+
+The Advisor must begin with one of:
 
 ```text
-/advisor            # Enable the Advisor Flow
-/advisor-models     # Choose the Executor and Advisor models
-/advisor-settings   # Configure behavior, modes, etc.
+Decision: proceed
+Decision: revise
+Decision: blocked
 ```
 
-On first use, or whenever a saved model is unavailable, `/advisor` opens the same available-model picker as `/advisor-models`; it never silently chooses an unconfigured model. You can also enable the flow and select both models at once:
+- `proceed` — reset the repeat counter and allow the tool call.
+- `revise` — deny that repeated call and return the Advisor feedback to the Executor.
+- `blocked` — apply `gateFailureMode`.
 
-```text
-/advisor executor=openai-codex/gpt-5.6-luna advisor=openai-codex/gpt-5.6-sol
+`gateFailureMode` can be:
+
+- `block-session` (default): deny this and subsequent tool calls in the session.
+- `block-tool`: deny only the current repeated tool call.
+- `warn-and-continue`: log the warning and allow execution.
+
+No case automatically switches the Executor to the Advisor model.
+
+## Context sent to the Advisor
+
+The plugin reconstructs the model-visible DSH conversation from `agent.session.deriveMessages()` and keeps recent complete entries up to `contextMaxChars`.
+
+It follows upstream's disclosure shape:
+
+- ordinary user text
+- Executor visible text
+- Executor tool calls
+- tool results, capped at 2,000 lines / 50 KiB by default
+- optional working-tree summary or patch
+- optional Executor `draft`
+- optional targeted `question`
+
+Reasoning blocks are not forwarded. Repository text is escaped and explicitly labelled as untrusted data. Optional secret redaction runs locally before disclosure.
+
+## Tool-result policies
+
+Per-tool policies can be configured:
+
+```yaml
+advisorToolPolicies:
+  bash: summary
+  read: full
+  deploy: exclude
 ```
 
-From the Executor, `ask_advisor({})` requests a general review. A targeted `question` or concise `draft` can focus the review on a particular decision.
+- `full`: include bounded output.
+- `summary`: include only status / size metadata.
+- `exclude`: withhold the tool call/result content from Advisor context.
 
-In the Settings, enable Simple Mode for a quick start.
+## Call budget
 
-![Pi Advisor Settings Panel](https://raw.githubusercontent.com/philipbrembeck/pi-advisor/refs/heads/main/assets/settings.png)
+`advisorMaxCallsPerSession` is shared by manual `ask_advisor` calls and automatic loop-gate consultations.
 
-Unknown fields in `advisor.json` are preserved for forward compatibility and reported as non-blocking warnings. Invalid recognized values fail their own Advisor call with a clear message instead of blocking every tool call.
+- `-1`: unlimited (default)
+- `0`: disable advanced Advisor calls
+- positive integer: hard per-session limit
 
-## Usage and accounting
+`simpleMode: true` leaves voluntary `ask_advisor` available and disables the automatic/guideline-heavy flow, mirroring the upstream concept.
 
-Advisor responses show provider-reported input, output, cache, and cost details when available. Successful `ask_advisor` calls also carry normalized usage into Pi's built-in `/cost` totals. Manual consultations and automatic gates keep their own session-local accounting instead, so nothing is double-counted. Missing or partial provider usage is shown as unavailable rather than fabricated as zero. `/advisor-settings` controls both the per-response details and the optional cumulative footer independently.
+## Why this fork exists
 
-Successful calls return an opaque `adviceId`. If global outcome logging is enabled, the Executor can call `record_advisor_outcome` once to record whether the advice was adopted and whether final validation passed.
+The original experiment behind this fork tried to keep a premium model as the main agent and semantically compress large tool results before returning them. In testing, when the premium model needed exact/full content it often re-read the source, causing the worker call plus summary plus full premium read — sometimes consuming more tokens than a normal read.
 
-## Commands
+`dsh-advisor` reverses the architecture: a cheap model owns the large-context implementation work, while the premium model receives only bounded context for high-value judgment.
 
-| Command                   | What it does                                        |
-| ------------------------- | --------------------------------------------------- |
-| `/advisor`                | Enable the flow; choose available models when needed. |
-| `/advisor-manual [focus]` | Ask for an immediate second opinion.                |
-| `/advisor-models`         | Choose the Executor and Advisor models.             |
-| `/advisor-settings`       | Configure behavior, context, privacy, and limits.   |
-| `/advisor-off`            | Disable the flow and persistent activation.         |
+## Upstream and license
 
-In the interactive TUI, `/advisor-manual [focus]` opens a centered overlay with the focus text prefilled, a choice of permitted Git-context level, and live progress in the transcript. Canceling has no side effects.
+This repository was forked from `philipbrembeck/pi-advisor` and preserves its MIT license and copyright notice. The original Pi implementation remains in Git history/source as the upstream reference; the active DSH runtime lives under `dsh/`.
 
-### Experimental Advisor Scout
+Upstream:
 
-Advisor Scout is off by default. When enabled in `/advisor-settings` or via `"advisorScoutEnabled": true`, the Executor model first selects relevant conversation history before the Advisor sees it. Scout runs in a separate model call, which adds cost and latency up front but can shrink the Advisor call. A bounded result shows the model, selection counts, and usage; on any failure it falls back to sending the original conversation unchanged. This experiment adapts the context-boundary idea from Zhang et al., ["FastContext: Training Efficient Repository Explorer for Coding Agents"](https://arxiv.org/html/2606.14066v1) — it curates conversation history only and is not a reproduction of FastContext. See the [configuration guide](https://github.com/philipbrembeck/pi-advisor/blob/main/docs/configuration.md) for details.
+- https://github.com/philipbrembeck/pi-advisor
+- Pi package: `pi-advisor-flow`
 
-## Privacy
+DSH port:
 
-Advisor requests can include user messages, tool calls, tool results, targeted questions, and repository information. Repository context is configurable from no access through changed-file summaries to a capped patch; when it is disabled, the Advisor is told so rather than shown an apparently clean tree. Explicit tracked and untracked file contents require separate global opt-ins and are sent as untrusted data. Secret redaction is off by default; when enabled, credential-shaped values in targeted questions are redacted before the provider request. Tools without an explicit policy use full context. Settings are global, so a project cannot silently change them.
-
-When Scout is enabled, the Executor model provider also receives bounded Advisor-eligible conversation history. Read [Privacy and data handling](https://github.com/philipbrembeck/pi-advisor/blob/main/docs/privacy.md) before using pi-advisor with sensitive work.
-
-## Documentation
-
-- [Configuration and automatic loop gates](https://github.com/philipbrembeck/pi-advisor/blob/main/docs/configuration.md)
-- [Privacy and data handling](https://github.com/philipbrembeck/pi-advisor/blob/main/docs/privacy.md)
-- [Development](https://github.com/philipbrembeck/pi-advisor/blob/main/docs/development.md)
-- [Benchmarking](https://github.com/philipbrembeck/pi-advisor/blob/main/docs/benchmark.md)
-- [Documentation index](https://github.com/philipbrembeck/pi-advisor/blob/main/docs/README.md)
-
-## Links
-
-- [Changelog](CHANGELOG.md)
-- [MIT License](LICENSE)
-- [npm package](https://www.npmjs.com/package/pi-advisor-flow)
-- [Why use an Advisor flow?](https://philipbrembeck.com/writings/2026/07/only-as-much-intelligence-as-you-need)
+- https://github.com/nyoa3636-actions/dsh-advisor
