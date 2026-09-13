@@ -2,6 +2,8 @@ import { capToolResult, selectRecentEntries } from "./core.js";
 import { capRepositoryContext, clampGitContextLevel, collectGitContext, escapeRepositoryText, gitContextNote } from "./git.js";
 
 const REDACTION_MARKER = "[REDACTED SECRET]";
+const PEM_BEGIN_PATTERN = /-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----/gi;
+const PEM_END_PATTERN = /-----END(?: [A-Z0-9]+)? PRIVATE KEY-----/i;
 const SECRET_PATTERNS = [
   /-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----[\s\S]*?-----END(?: [A-Z0-9]+)? PRIVATE KEY-----/gi,
   /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
@@ -11,8 +13,20 @@ const SECRET_PATTERNS = [
   /\b(?:aws_secret_access_key|aws_session_token)\s*[:=]\s*[^\s"'&,;)}\]]+/gi,
 ];
 
+function redactUnterminatedPem(value) {
+  const begins = [...String(value).matchAll(PEM_BEGIN_PATTERN)];
+  const lastBegin = begins.at(-1);
+  if (lastBegin?.index === undefined) return String(value);
+  const hasEnd = PEM_END_PATTERN.test(
+    String(value).slice(lastBegin.index + lastBegin[0].length),
+  );
+  return hasEnd
+    ? String(value)
+    : `${String(value).slice(0, lastBegin.index)}${REDACTION_MARKER}`;
+}
+
 export function redactSecrets(value) {
-  let output = String(value);
+  let output = redactUnterminatedPem(String(value));
   for (const pattern of SECRET_PATTERNS) {
     output = output.replace(pattern, (_match, scheme) => typeof scheme === "string" ? `${scheme}${REDACTION_MARKER}@` : REDACTION_MARKER);
   }

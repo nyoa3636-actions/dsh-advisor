@@ -8,6 +8,7 @@ import {
   parseModelRef,
   selectRecentEntries,
 } from "../dsh/core.js";
+import { redactSecrets } from "../dsh/context.js";
 import { gitContextNote } from "../dsh/git.js";
 
 test("parseModelRef requires provider/model", () => {
@@ -68,4 +69,28 @@ test("no-changes repository state is not misreported as withheld", () => {
     gitContextNote({ level: "summary", status: "collected", text: "changed" }, "full", "summary"),
     /fuller view was requested but withheld/,
   );
+});
+
+test("secret redaction removes terminated and unterminated private keys", () => {
+  const terminated = "before\n-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----\nafter";
+  const terminatedRedacted = redactSecrets(terminated);
+  assert.doesNotMatch(terminatedRedacted, /secret/);
+  assert.match(terminatedRedacted, /\[REDACTED SECRET\]/);
+  assert.match(terminatedRedacted, /after/);
+
+  const unterminated = "before\n-----BEGIN PRIVATE KEY-----\nsecret-tail";
+  assert.equal(redactSecrets(unterminated), "before\n[REDACTED SECRET]");
+});
+
+test("session summary counts failed Advisor invocations", () => {
+  const state = new AdvisorSessionState();
+  state.consumeCall();
+  state.recordInvocation({
+    trigger: "executor-requested",
+    model: "openai-codex/gpt-5.6-sol",
+    failure: "provider-error",
+    executionEffect: "continued",
+  });
+  assert.match(state.summary(5), /Calls: 1/);
+  assert.match(state.summary(5), /Budget: 1 \/ 5 used; 4 remaining/);
 });
