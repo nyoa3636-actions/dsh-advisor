@@ -134,11 +134,9 @@ export function apply(ctx, rawConfig) {
   ctx.systemPrompt.section({
     name: "dsh-advisor:guidance",
     order: 9300,
-    text: ({ scope }) => {
+    text: () => {
       if (!config.advisor) return "";
-      const state = scope ? states.get(scope) : undefined;
-      const remaining = state?.remainingCalls(config.advisorMaxCallsPerSession);
-      const rules = advisorInvocationGuidelines(config, remaining);
+      const rules = advisorInvocationGuidelines(config);
       return rules.length ? `## Advisor workflow\n\n${rules.map((rule) => `- ${rule}`).join("\n")}` : "";
     },
   });
