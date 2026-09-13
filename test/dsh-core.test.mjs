@@ -53,7 +53,7 @@ test("tool result cap retains both ends", () => {
 test("recent-entry selection preserves newest complete entries", () => {
   const result = selectRecentEntries(["one", "two", "three"], 50);
   assert.equal(result, "one\n\ntwo\n\nthree");
-  const small = selectRecentEntries(["old-entry", "new-entry"], 43);
+  const small = selectRecentEntries(["old-entry-".repeat(20), "new-entry"], 60);
   assert.match(small, /new-entry/);
   assert.match(small, /Older context omitted/);
 });
