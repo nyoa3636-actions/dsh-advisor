@@ -1,104 +1,70 @@
 {
-  "name": "pi-advisor-flow",
-  "version": "0.6.0",
-  "description": "Advanced Executor/Advisor flow for Pi, fully configurable and extendable.",
+  "name": "dsh-advisor",
+  "version": "0.1.0",
+  "description": "Advisor/Executor flow for DeepSeek Harness (DSH), adapted from philipbrembeck/pi-advisor.",
   "keywords": [
-    "pi-package",
-    "pi-extension",
-    "pi-coding-agent",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
     "advisor",
-    "pi-advisor",
-    "herdr"
+    "executor",
+    "coding-agent",
+    "model-routing"
   ],
-  "homepage": "https://github.com/philipbrembeck/pi-advisor",
+  "homepage": "https://github.com/nyoa3636-actions/dsh-advisor",
   "repository": {
     "type": "git",
-    "url": "https://github.com/philipbrembeck/pi-advisor.git"
+    "url": "https://github.com/nyoa3636-actions/dsh-advisor.git"
   },
   "license": "MIT",
-  "author": "Philip Brembeck",
+  "author": "Philip Brembeck; DSH port by nyoa3636-actions",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "extensions/index.ts",
+  "main": "dsh/index.js",
+  "exports": {
+    ".": "./dsh/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
   "files": [
-    "dist",
-    "extensions",
+    "dsh",
+    "cordis.patch.yml",
     "src",
-    "CHANGELOG.md",
+    "docs",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
-    "bench:decisions": "bun bench/src/cli.ts decisions",
-    "bench:evaluate": "bun bench/src/cli.ts evaluate",
-    "bench:replay": "bun bench/src/cli.ts replay",
-    "bench:screen": "bun bench/src/cli.ts screen",
-    "build": "bun build ./extensions/index.ts --outfile dist/index.js --target node --format esm --external @earendil-works/pi-ai --external @earendil-works/pi-coding-agent --external @earendil-works/pi-tui --external typebox",
-    "check:boundaries": "node scripts/check-module-boundaries.mjs",
-    "format": "bunx ultracite fix --linter-enabled=false",
-    "knip": "knip",
-    "lint": "bunx ultracite check",
-    "lint:fix": "bunx ultracite fix",
-    "prepack": "bun run build >/dev/null",
-    "package:check": "node scripts/check-package.mjs",
-    "prepare": "husky",
-    "socket": "bunx socket optimize",
-    "test": "bun test && bun run test:node-loader",
-    "test:bench": "bun --config=./bunfig.bench.toml test ./bench/test/",
-    "test:node-loader": "node --test test/default-resource-loader.node.mjs",
-    "typecheck": "tsc --noEmit"
+    "check": "node --check dsh/index.js",
+    "build": "node --check dsh/index.js",
+    "test": "node --test test-dsh/*.test.mjs"
   },
-  "lint-staged": {
-    "*.{json,jsonc,ts}": "bun run lint:fix --"
-  },
-  "resolutions": {
-    "is-unicode-supported": "npm:@socketregistry/is-unicode-supported@1.0.5",
-    "safe-buffer": "npm:@socketregistry/safe-buffer@1.0.9"
-  },
-  "overrides": {
-    "brace-expansion": "5.0.9",
-    "is-unicode-supported": "npm:@socketregistry/is-unicode-supported@1.0.5",
-    "safe-buffer": "npm:@socketregistry/safe-buffer@1.0.9",
-    "undici": "8.9.0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.5.12",
-    "@earendil-works/pi-ai": "^0.85.1",
-    "@earendil-works/pi-coding-agent": "^0.85.1",
-    "@earendil-works/pi-tui": "^0.85.1",
-    "@types/node": "^26.4.1",
-    "bun-types": "1.4.1",
-    "husky": "^9.1.7",
-    "knip": "^6.35.1",
-    "lint-staged": "^17.4.1",
-    "typebox": "^1.3.25",
-    "typescript": "^7.0.2",
-    "ultracite": "7.10.8"
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "^0.84.1 || ^0.85.1",
-    "@earendil-works/pi-coding-agent": "^0.84.1 || ^0.85.1",
-    "@earendil-works/pi-tui": "^0.84.1 || ^0.85.1",
-    "typebox": "^1.1.38"
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-llm": "*",
+    "@deepseek-ai/dsh-system-prompt": "*",
+    "@deepseek-ai/dsh-tools": "*"
   },
   "peerDependenciesMeta": {
-    "@earendil-works/pi-ai": {
+    "@deepseek-ai/cordis": {
       "optional": true
     },
-    "@earendil-works/pi-coding-agent": {
+    "@deepseek-ai/dsh-llm": {
       "optional": true
     },
-    "@earendil-works/pi-tui": {
+    "@deepseek-ai/dsh-system-prompt": {
       "optional": true
     },
-    "typebox": {
+    "@deepseek-ai/dsh-tools": {
       "optional": true
     }
   },
-  "pi": {
-    "extensions": [
-      "./dist/index.js"
-    ],
-    "image": "https://raw.githubusercontent.com/philipbrembeck/pi-advisor/refs/heads/main/assets/hero.png"
+  "engines": {
+    "node": ">=22.19.0"
   }
 }
