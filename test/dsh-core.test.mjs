@@ -8,7 +8,7 @@ import {
   parseModelRef,
   selectRecentEntries,
 } from "../dsh/core.js";
-import { redactSecrets } from "../dsh/context.js";
+import { recentConversation, redactSecrets } from "../dsh/context.js";
 import { gitContextNote } from "../dsh/git.js";
 
 test("parseModelRef requires provider/model", () => {
@@ -83,6 +83,27 @@ test("recent-entry selection preserves newest complete entries", () => {
   const small = selectRecentEntries(["old-entry-".repeat(20), "new-entry"], 60);
   assert.match(small, /new-entry/);
   assert.match(small, /Older context omitted/);
+});
+
+test("conversation reconstruction preserves DSH plugin provenance", () => {
+  const messages = [
+    { role: "user", source: { kind: "user" }, content: [{ type: "text", text: "normal user" }] },
+    { role: "user", source: { kind: "plugin", plugin: "compact", compactionId: "x" }, content: [{ type: "text", text: "checkpoint" }] },
+    { role: "user", source: { kind: "plugin", plugin: "workspace", form: "instructions" }, content: [{ type: "text", text: "workspace context" }] },
+  ];
+  const agent = { session: { deriveMessages: () => messages } };
+  const config = {
+    advisorRedactSecrets: false,
+    advisorToolPolicies: {},
+    advisorToolResultMaxLines: 2000,
+    advisorToolResultMaxBytes: 51200,
+    contextMaxChars: 5000,
+  };
+  const conversation = recentConversation(agent, config);
+  assert.match(conversation, /User: normal user/);
+  assert.match(conversation, /\[System Compaction Summary\]: checkpoint/);
+  assert.match(conversation, /\[Context from DSH plugin workspace; form=instructions\]: workspace context/);
+  assert.doesNotMatch(conversation, /User: checkpoint/);
 });
 
 test("repository disclosure note only reports an actually narrowed request", () => {

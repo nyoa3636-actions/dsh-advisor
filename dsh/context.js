@@ -45,6 +45,12 @@ function sourceText(value, redact) {
   return redact ? redactSecrets(value) : value;
 }
 
+function pluginContextLabel(source) {
+  const plugin = typeof source?.plugin === "string" ? source.plugin : "unknown";
+  const form = typeof source?.form === "string" ? `; form=${source.form}` : "";
+  return `[Context from DSH plugin ${plugin}${form}]`;
+}
+
 function conversationEntries(agent, config) {
   const messages = agent.session.deriveMessages();
   const toolNames = new Map();
@@ -92,7 +98,15 @@ function conversationEntries(agent, config) {
     }
     if (message.role === "user") {
       const text = textFromBlocks(message.content);
-      if (text) entries.push(`User: ${sourceText(text, config.advisorRedactSecrets)}`);
+      if (!text) continue;
+      const disclosed = sourceText(text, config.advisorRedactSecrets);
+      if (message.source?.kind === "plugin" && message.source.plugin === "compact") {
+        entries.push(`[System Compaction Summary]: ${disclosed}`);
+      } else if (message.source?.kind === "plugin") {
+        entries.push(`${pluginContextLabel(message.source)}: ${disclosed}`);
+      } else {
+        entries.push(`User: ${disclosed}`);
+      }
     }
   }
   return entries;
