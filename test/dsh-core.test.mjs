@@ -33,14 +33,39 @@ test("session repetition gate triggers at threshold and can reset", () => {
   assert.equal(state.recordToolCall("read", { file_path: "a.ts" }, 3), true);
   state.resetRepetition();
   assert.equal(state.recordToolCall("read", { file_path: "a.ts" }, 3), false);
+  assert.equal(state.repetition.interventions, 1);
 });
 
-test("automatic decision requires exact first non-empty header", () => {
+test("automatic decision requires an exact first non-empty header", () => {
   assert.deepEqual(parseAutomaticDecision("\nDecision: proceed\nLooks fine."), {
     ok: true,
     decision: "proceed",
   });
-  assert.equal(parseAutomaticDecision("Looks fine").ok, false);
+  assert.equal(parseAutomaticDecision("Looks fine").category, "missing-decision");
+  assert.equal(parseAutomaticDecision("Decision: proceed now").category, "malformed-decision");
+  assert.equal(parseAutomaticDecision("   ").category, "empty-response");
+});
+
+test("automatic decision fails closed on duplicate or contradictory verdicts", () => {
+  assert.equal(
+    parseAutomaticDecision("Decision: proceed\nDecision: proceed").category,
+    "duplicate-decision",
+  );
+  assert.equal(
+    parseAutomaticDecision("Decision: proceed\nDecision: blocked").category,
+    "contradictory-decision",
+  );
+});
+
+test("automatic decision ignores balanced fenced examples but not malformed fences", () => {
+  assert.deepEqual(
+    parseAutomaticDecision("Decision: proceed\n```text\nDecision: blocked\n```\nContinue."),
+    { ok: true, decision: "proceed" },
+  );
+  assert.equal(
+    parseAutomaticDecision("Decision: proceed\n```text\nDecision: blocked").category,
+    "contradictory-decision",
+  );
 });
 
 test("tool result cap retains both ends", () => {
@@ -60,7 +85,7 @@ test("recent-entry selection preserves newest complete entries", () => {
   assert.match(small, /Older context omitted/);
 });
 
-test("no-changes repository state is not misreported as withheld", () => {
+test("repository disclosure note only reports an actually narrowed request", () => {
   assert.equal(
     gitContextNote({ level: "summary", status: "no-changes", text: "" }, "full", "summary"),
     "The working tree has no uncommitted changes.",
@@ -68,6 +93,10 @@ test("no-changes repository state is not misreported as withheld", () => {
   assert.match(
     gitContextNote({ level: "summary", status: "collected", text: "changed" }, "full", "summary"),
     /fuller view was requested but withheld/,
+  );
+  assert.equal(
+    gitContextNote({ level: "summary", status: "collected", text: "changed" }, "summary", "full"),
+    undefined,
   );
 });
 

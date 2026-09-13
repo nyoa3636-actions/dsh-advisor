@@ -1,6 +1,9 @@
 const WHITESPACE = /\s/;
 const TIMESTAMP_KEYS = new Set(["createdat", "date", "datetime", "time", "timestamp", "updatedat"]);
 const REQUEST_ID_KEYS = new Set(["correlationid", "requestid", "traceid"]);
+const DECISION_LINE = /^Decision\s*:\s*(proceed|revise|blocked)\s*$/i;
+const CODE_FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const LINE_BREAK = /\r?\n/;
 
 const normalizedKey = (key) => key.replace(/[-_]/g, "").toLowerCase();
 const isVolatileKey = (key, keys) => keys.has(normalizedKey(key));
@@ -270,10 +273,83 @@ export class AdvisorSessionState {
   }
 }
 
-export function parseAutomaticDecision(markdown) {
-  const first = markdown.split(/\r?\n/).find((line) => line.trim())?.trim().toLowerCase();
-  if (first === "decision: proceed") return { ok: true, decision: "proceed" };
-  if (first === "decision: revise") return { ok: true, decision: "revise" };
-  if (first === "decision: blocked") return { ok: true, decision: "blocked" };
-  return { ok: false, category: "invalid-decision", message: "Advisor gate response did not begin with a valid Decision header." };
+function advanceFence(openingFence, marker, suffix) {
+  if (!openingFence) {
+    if (marker[0] === "`" && suffix.includes("`")) {
+      return { closed: false, openingFence: undefined };
+    }
+    return {
+      closed: false,
+      openingFence: { character: marker[0], length: marker.length },
+    };
+  }
+  if (
+    suffix.trim().length > 0 ||
+    marker[0] !== openingFence.character ||
+    marker.length < openingFence.length
+  ) {
+    return { closed: false, openingFence };
+  }
+  return { closed: true, openingFence: undefined };
+}
+
+export function parseAutomaticDecision(text) {
+  const lines = String(text).split(LINE_BREAK);
+  const nonEmpty = lines.findIndex((line) => line.trim().length > 0);
+  if (nonEmpty === -1) {
+    return {
+      category: "empty-response",
+      message: "Advisor returned an empty gate response.",
+      ok: false,
+    };
+  }
+  const first = lines[nonEmpty].trim();
+  const match = DECISION_LINE.exec(first);
+  if (!match) {
+    return {
+      category: first.toLowerCase().startsWith("decision:")
+        ? "malformed-decision"
+        : "missing-decision",
+      markdown: text,
+      message: "Advisor gate response must begin with Decision: proceed, Decision: revise, or Decision: blocked.",
+      ok: false,
+    };
+  }
+  const decision = match[1].toLowerCase();
+  let openingFence;
+  const decisions = [];
+  let pendingFencedDecisions = [];
+  for (const line of lines.slice(nonEmpty + 1)) {
+    const trimmed = line.trim();
+    const fence = CODE_FENCE.exec(line);
+    if (fence) {
+      const advanced = advanceFence(openingFence, fence[1], fence[2]);
+      openingFence = advanced.openingFence;
+      if (advanced.closed) pendingFencedDecisions = [];
+      continue;
+    }
+    const subsequent = DECISION_LINE.exec(trimmed);
+    if (!subsequent) continue;
+    const repeated = subsequent[1].trim().toLowerCase();
+    if (openingFence) pendingFencedDecisions.push(repeated);
+    else decisions.push(repeated);
+  }
+  if (openingFence) decisions.push(...pendingFencedDecisions);
+  for (const repeated of decisions) {
+    if (repeated === decision) {
+      return {
+        category: "duplicate-decision",
+        markdown: text,
+        message: "Advisor gate response contains duplicate decision lines.",
+        ok: false,
+      };
+    }
+    return {
+      category: "contradictory-decision",
+      markdown: text,
+      message: "Advisor gate response contains contradictory decision lines.",
+      ok: false,
+    };
+  }
+  return { ok: true, decision };
 }
