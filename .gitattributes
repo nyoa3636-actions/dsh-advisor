@@ -1,0 +1,5 @@
+# The browser bundle is generated; a byte-identical rebuild must survive every
+# checkout, so text files stay LF on every platform.
+* text=auto eol=lf
+*.png binary
+*.woff2 binary

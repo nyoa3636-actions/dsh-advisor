@@ -4,6 +4,49 @@ All notable changes to this project are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
 
+## 0.2.0 - 2026-10-18
+
+Adds an in-Harness configuration and accounting surface for the DSH runtime. Everything below runs inside DeepSeek Harness through its published extension points; no external server, companion app, or separate management UI is involved.
+
+### Added
+
+- An **Advisor Settings** section in the DSH Settings surface (`settings.section`, id `advisor`, order 40) with Settings, Budget, History, and Connection test tabs, plus English and Japanese dictionaries.
+- An **Advisor model picker** driven by `ctx.remote.session.modelCatalog()`, so the page offers exactly the providers and models DSH registered, and only the reasoning efforts each model advertises. No model id has to be typed, and an unsupported effort is never sent.
+- An **Advisor consultation budget** with an independent cash ceiling (USD) and consultation ceiling, `session` or `project` scope, and `stop-advisor` / `confirm` over-limit behaviour.
+- **Estimate-then-settle accounting**: each call reserves what its rate table can prove before the provider answers and reconciles with the reported usage afterwards, so concurrent sessions cannot spend the same remaining budget.
+- A **durable usage ledger** at `<harness home>/dsh-advisor/budget-ledger.json` (override with `advisorLedgerPath`) recording model, input/output/cache tokens, estimated cost, time, outcome, and the reason for each consultation.
+- A **usage dashboard**: configured ceiling, spend, remaining budget, a progress bar, consultation count, remaining consultations, last model, last time, and last result.
+- A **consultation history** view, and `/advisor-history`, showing time, reason, model, tokens, estimated cost, and success/failure.
+- A **Test Advisor** button and `/advisor-test` that send one short message to the configured model and report connection, provider/model, reply, response time, tokens, estimated cost, and what to check on failure.
+- `/advisor`, `/advisor-budget`, `/advisor-history`, `/advisor-log`, and `/advisor-test` session commands. Each returns a readable report plus a `dsh-advisor-json` block, which is how the page reads live state.
+- **Project-scoped budgets** keyed by the session workspace's Git work-tree root, overridable with `advisorProjectKey`.
+- A model-rate table (`advisorPricing`, edited on the page as one row per model).
+
+### Changed
+
+- `advisorBudgetMaxCalls` shares one ceiling with `advisorMaxCallsPerSession` in both directions, so an existing profile's call limit keeps working whether or not the budget is enabled.
+- `block-tool` (loop gate) and secret redaction are applied as the recommended values when a profile has never named those keys. An explicit existing value is never overwritten.
+- `ask_advisor` reports a refused consultation as a normal tool outcome instead of a tool error, so the Executor keeps working when the Advisor is unconfigured, failing, or out of budget.
+- The automatic loop gate withdraws the Advisor instead of blocking the tool call when the consultation budget is exhausted, regardless of `gateFailureMode`.
+- The Advisor model, reasoning effort, and route can be overridden per call without mutating persisted configuration, which is what the connection test uses.
+- The client half is declared through `dsh.client` with a `./client` export, a `locale/` directory, and an icon, and carries both languages.
+- CI now also runs the DSH runtime integration suite.
+
+### Fixed
+
+- The settings entry no longer needs a hand-maintained namespace id: the page resolves the entry by id and falls back to its Advisor field, so a pinned profile still works.
+- Provider errors during a consultation are recorded in the ledger as failures and reported to the Executor without ending the session.
+- The Advisor section activates in the DSH Web client. React is resolved from the browser module table instead of `ctx`, where Cordis rejects undeclared properties.
+- Dotted Remote namespaces (`remote.session`, `remote.commands`) are read through `ctx.get`, so the model picker and the budget dashboard load.
+- The page reads the real config-form snapshot (`status`, `value`, `base`, `revision`) and persists through `form.mutate`, so Save writes the plugin entry into the profile patch.
+- The panel subscribes with `useState` + `useEffect`, and the model reference prop no longer shadows React's reserved `ref`, so the section renders instead of aborting with "Too many re-renders".
+
+## 0.1.0 - 2026-10-18
+
+### Added
+
+- Initial DSH port of `pi-advisor`: `ask_advisor`, plan/failure/completion guidance, the repeated-tool loop gate, reconstructed conversation context, tool-result policies, Git working-tree context, secret redaction, and per-session Advisor accounting.
+
 ## 0.6.0 - 2026-09-12
 
 ### Fixed

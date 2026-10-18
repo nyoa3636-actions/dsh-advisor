@@ -1,21 +1,31 @@
 {
   "name": "dsh-advisor",
-  "version": "0.1.0",
-  "description": "Configurable cheap-Executor / premium-Advisor workflow plugin for DeepSeek Harness, adapted from pi-advisor.",
+  "version": "0.2.0",
+  "description": "Configurable cheap-Executor / premium-Advisor workflow plugin for DeepSeek Harness, adapted from pi-advisor, with an in-Harness Advisor Settings page and consultation budget.",
   "type": "module",
   "main": "dsh/index.js",
   "exports": {
-    ".": "./dsh/index.js"
+    ".": "./dsh/index.js",
+    "./client": "./dsh/client.js",
+    "./client/source": "./dsh/client/index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
   "files": [
     "dsh/",
+    "locale/*.json",
+    "icon.svg",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "check": "node --check dsh/core.js && node --check dsh/prompts.js && node --check dsh/git.js && node --check dsh/context.js && node --check dsh/advisor.js && node --check dsh/config.js && node --check dsh/index.js",
-    "test": "node --test test/dsh-core.test.mjs test/dsh-integration.test.mjs"
+    "build:client": "node scripts/build-client.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test --test-isolation=none test/dsh-core.test.mjs test/advisor-config.test.mjs test/advisor-budget.test.mjs test/advisor-store.test.mjs test/advisor-commands.test.mjs test/advisor-settings-ui.test.mjs test/advisor-client.test.mjs test/client-entry.test.mjs",
+    "test:all": "node --test --test-isolation=none test/*.test.mjs",
+    "test:integration": "node --test --test-isolation=none test/dsh-integration.test.mjs"
   },
   "keywords": [
     "deepseek-harness",
@@ -38,16 +48,24 @@
   "engines": {
     "node": ">=22"
   },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
+    }
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.1",
     "@deepseek-ai/dsh-llm": ">=0.1.5-rc.2",
     "@deepseek-ai/dsh-tools": ">=0.1.5-rc.2",
     "@deepseek-ai/schemastery": ">=3.18.0"
-  },
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    }
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
